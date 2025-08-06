@@ -139,7 +139,6 @@ ai_auditor.duckdb
 ai_auditor.duckdb.wal
 
 # Machine Learning / AI specific
-models/
 *.pkl
 *.joblib
 *.h5

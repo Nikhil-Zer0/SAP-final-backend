@@ -45,6 +45,60 @@ async def clear_explain_cache():
     
     return {"message": "All explanation caches cleared"}
 
+@router.get("/explain/accuracy")
+async def get_model_accuracy_stats():
+    """Get accuracy statistics for cached models."""
+    from app.services.explainability.shap_service import SHAPService
+    from sklearn.model_selection import train_test_split
+    
+    accuracy_stats = {}
+    
+    for cache_key, model in SHAPService._model_cache.items():
+        try:
+            # Get cached data
+            if cache_key in SHAPService._data_cache:
+                X = SHAPService._data_cache[cache_key]['X']
+                y = SHAPService._data_cache[cache_key]['y']
+                
+                # Calculate train/test split accuracy
+                if len(X) > 10:  # Only if we have enough data
+                    X_train, X_test, y_train, y_test = train_test_split(
+                        X, y, test_size=0.3, random_state=42, stratify=y
+                    )
+                    
+                    model_clone = model.__class__(**model.get_params())
+                    model_clone.fit(X_train, y_train)
+                    
+                    train_acc = model_clone.score(X_train, y_train)
+                    test_acc = model_clone.score(X_test, y_test)
+                    
+                    accuracy_stats[cache_key] = {
+                        "train_accuracy": round(train_acc, 3),
+                        "test_accuracy": round(test_acc, 3),
+                        "overfitting_gap": round(train_acc - test_acc, 3),
+                        "dataset_size": len(X),
+                        "feature_count": len(X.columns),
+                        "class_distribution": {
+                            "class_0": int((y == 0).sum()),
+                            "class_1": int((y == 1).sum())
+                        }
+                    }
+                else:
+                    accuracy_stats[cache_key] = {
+                        "error": "Insufficient data for accuracy calculation",
+                        "dataset_size": len(X)
+                    }
+        except Exception as e:
+            accuracy_stats[cache_key] = {
+                "error": f"Could not calculate accuracy: {str(e)}"
+            }
+    
+    return {
+        "cached_models": len(SHAPService._model_cache),
+        "accuracy_stats": accuracy_stats,
+        "timestamp": pd.Timestamp.now().isoformat()
+    }
+
 class FeatureImportanceResponse(BaseModel):
     feature: str
     importance: float

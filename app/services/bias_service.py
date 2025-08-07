@@ -73,7 +73,7 @@ class BiasDetectionService:
             # Convert to DataFrame
             df = pd.DataFrame(dataset)
 
-            # 🔥 STEP 1: AGGRESSIVE NA CLEANING - ULTIMATE VERSION
+            #STEP 1: AGGRESSIVE NA CLEANING - ULTIMATE VERSION
             logger.info("Starting aggressive NA cleaning process...")
             
             # Replace all possible NA indicators with pd.NA
@@ -377,11 +377,20 @@ class BiasDetectionService:
                     "Continue monitoring for potential bias drift"
                 ]
             
-            # Log final results
+            # Calculate ground truth accuracy for validation
+            actual_hiring_rates = df.groupby(sensitive_attribute)[target_variable].mean()
+            if len(actual_hiring_rates) >= 2:
+                rates = list(actual_hiring_rates.values())
+                ground_truth_di = min(rates) / max(rates) if max(rates) > 0 else 0.0
+                accuracy_note = f"Ground truth DI: {ground_truth_di:.3f}"
+            else:
+                accuracy_note = "Cannot calculate ground truth - insufficient groups"
+            
+            # Log final results with accuracy info
             logger.info(
                 f"Bias detection COMPLETED | Status: {audit_status} | "
-                f"DI: {metrics['disparate_impact']:.3f} | "
-                f"Records: {len(df)}"
+                f"Detected DI: {metrics['disparate_impact']:.3f} | "
+                f"{accuracy_note} | Records: {len(df)}"
             )
             
             return metrics, audit_status, recommendations, len(df)

@@ -21,6 +21,30 @@ from typing import List as TypingList
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
+@router.post("/explain/debug")
+async def debug_explain_cache():
+    """Debug endpoint to check cache status and clear if needed."""
+    from app.services.explainability.shap_service import SHAPService
+    
+    cache_info = {
+        "model_cache_keys": list(SHAPService._model_cache.keys()),
+        "data_cache_keys": list(SHAPService._data_cache.keys()),
+        "encoder_cache_keys": list(SHAPService._encoder_cache.keys())
+    }
+    
+    return cache_info
+
+@router.delete("/explain/cache")
+async def clear_explain_cache():
+    """Clear all explanation caches for testing."""
+    from app.services.explainability.shap_service import SHAPService
+    
+    SHAPService._model_cache.clear()
+    SHAPService._data_cache.clear()
+    SHAPService._encoder_cache.clear()
+    
+    return {"message": "All explanation caches cleared"}
+
 class FeatureImportanceResponse(BaseModel):
     feature: str
     importance: float

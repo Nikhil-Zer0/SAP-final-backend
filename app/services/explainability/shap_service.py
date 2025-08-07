@@ -58,10 +58,14 @@ class SHAPService:
             model, X, y
         """
         try:
-            cache_key = f"{len(dataset)}_{target_variable}"
+            # Create unique cache key based on data content hash, not just length
+            import hashlib
+            data_str = str(sorted([str(sorted(row.items())) for row in dataset]))
+            data_hash = hashlib.md5(data_str.encode()).hexdigest()[:8]
+            cache_key = f"{data_hash}_{target_variable}"
             
             if cache_key in SHAPService._model_cache:
-                logger.info("Using cached model for faster response")
+                logger.info(f"Using cached model for faster response (key: {cache_key})")
                 return (
                     SHAPService._model_cache[cache_key],
                     SHAPService._data_cache[cache_key]['X'],
@@ -109,10 +113,12 @@ class SHAPService:
             SHAPService._encoder_cache[cache_key] = encoders
             SHAPService._data_cache[cache_key] = {'X': X_encoded, 'y': y}
             
-            # Train lightweight model for fast explanation
+            # Train lightweight model for fast explanation with better parameters
             model = RandomForestClassifier(
-                n_estimators=10,
-                max_depth=6,
+                n_estimators=50,        # More trees for better predictions
+                max_depth=8,           # Slightly deeper for complex patterns
+                min_samples_split=5,   # Prevent overfitting
+                min_samples_leaf=2,    # Prevent overfitting
                 random_state=42
             )
             model.fit(X_encoded, y)
@@ -149,14 +155,24 @@ class SHAPService:
         """
         try:
             logger.info(f"Computing SHAP values for instance {instance_index}")
+            logger.info(f"Dataset shape: {X.shape}, columns: {list(X.columns)}")
             
             # Validate inputs
             if instance_index >= len(X):
                 raise ValueError(f"Instance index {instance_index} out of range for dataset size {len(X)}")
             
+            # Log the specific instance we're explaining
+            instance_data = X.iloc[instance_index]
+            logger.info(f"Instance {instance_index} values: {instance_data.to_dict()}")
+            
             # Create explainer
             explainer = shap.TreeExplainer(model)
-            shap_values_raw = explainer.shap_values(X)
+            
+            # OPTIMIZATION: Only compute SHAP for the specific instance we need
+            single_instance = X.iloc[instance_index:instance_index+1]
+            logger.info(f"Computing SHAP for single instance: {single_instance.shape}")
+            
+            shap_values_raw = explainer.shap_values(single_instance)
             
             # Handle binary classification
             if isinstance(shap_values_raw, list) and len(shap_values_raw) == 2:
@@ -164,12 +180,11 @@ class SHAPService:
             else:
                 shap_values = np.array(shap_values_raw)
             
-            # Ensure 2D
+            # Ensure 2D and get the single instance values
             if shap_values.ndim == 1:
-                shap_values = shap_values.reshape(1, -1)
-            
-            # Get values for the requested instance
-            instance_shap = shap_values[instance_index]
+                instance_shap = shap_values
+            else:
+                instance_shap = shap_values[0]  # First (and only) instance
             
             # Convert to dictionary with safe scalar conversion
             shap_dict = {}
@@ -187,10 +202,14 @@ class SHAPService:
                     logger.warning(f"Could not convert SHAP value for {feature}: {e}")
                     shap_dict[feature] = 0.0  # Default fallback
             
-            # Debug: Log total SHAP magnitude
+            # Debug: Log total SHAP magnitude and top features
             total_impact = sum(abs(v) for v in shap_dict.values())
             if total_impact < 1e-6:
                 logger.warning("All SHAP values are near zero — model may not be learning")
+            
+            # Log top 3 SHAP features for debugging
+            sorted_features = sorted(shap_dict.items(), key=lambda x: abs(x[1]), reverse=True)[:3]
+            logger.info(f"Top 3 SHAP features for instance {instance_index}: {sorted_features}")
             
             return shap_dict
             

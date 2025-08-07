@@ -7,6 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
 from typing import Dict, Any
 import logging
 
+import pandas as pd
+
 # Services
 from app.services.explainability.shap_service import SHAPService
 from app.services.explainability.llm_service import LLMService

@@ -115,15 +115,26 @@ class LLMService:
                 "executive": f"""
                 You are an AI ethics advisor to a CTO. Explain in 3-4 sentences how this model makes decisions.
                 Focus on business risk, brand reputation, and regulatory exposure.
-                If '{sensitive_attribute}' is in the top 3 features, flag it as a compliance risk under EEOC/GDPR/EU AI Act.
+                
+                IMPORTANT BIAS ASSESSMENT RULES:
+                - If '{sensitive_attribute}' has impact > 0.15: Flag as HIGH compliance risk
+                - If '{sensitive_attribute}' has impact 0.05-0.15: Flag as MODERATE compliance risk  
+                - If '{sensitive_attribute}' has impact < 0.05: Note as LOW/MINIMAL bias risk
+                - Consider both the ranking AND the actual magnitude of impact
+                
                 Use executive tone: concise, strategic, board-ready.
                 Context: {json.dumps(context, indent=2)}
                 """,
                 
                 "compliance": f"""
                 You are an AI compliance officer. Analyze whether this model complies with GDPR, EU AI Act, and EEOC.
-                Identify any bias risks related to '{sensitive_attribute}'.
-                Recommend specific actions to meet regulatory standards.
+                
+                BIAS RISK ASSESSMENT:
+                - '{sensitive_attribute}' impact > 0.15: HIGH RISK - Immediate action required
+                - '{sensitive_attribute}' impact 0.05-0.15: MODERATE RISK - Monitor and investigate
+                - '{sensitive_attribute}' impact < 0.05: LOW RISK - Acceptable under most regulations
+                
+                Recommend specific actions based on the actual magnitude, not just ranking.
                 Use formal, audit-ready language.
                 Context: {json.dumps(context, indent=2)}
                 """,
@@ -131,7 +142,14 @@ class LLMService:
                 "technical": f"""
                 You are a senior ML engineer. Explain how each of the top 3 features influences the prediction.
                 Describe the direction and magnitude of impact.
-                Suggest model improvements (e.g., retraining, fairness constraints).
+                
+                TECHNICAL BIAS THRESHOLDS:
+                - '{sensitive_attribute}' SHAP impact > 0.15: Significant bias requiring model retraining
+                - '{sensitive_attribute}' SHAP impact 0.05-0.15: Moderate bias, consider fairness constraints
+                - '{sensitive_attribute}' SHAP impact < 0.05: Minimal bias, acceptable for most use cases
+                
+                Focus on actual numerical impact, not just feature ranking.
+                Suggest model improvements based on magnitude of bias.
                 Use technical but clear language.
                 Context: {json.dumps(context, indent=2)}
                 """
